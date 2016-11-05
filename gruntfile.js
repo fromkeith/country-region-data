@@ -1,6 +1,5 @@
 var _ = require('underscore');
 
-
 var findDuplicates = function (sourceArray, prop) {
   var duplicates = [];
   var groupedByCount = _.countBy(sourceArray, function (item) { return item[prop]; });
@@ -25,6 +24,25 @@ var getJSON = function (grunt) {
   }
   return content;
 };
+var getIso2to3JSON = function (grunt) {
+  var content = '';
+  try {
+    content = grunt.file.readJSON("iso2toiso3.json");
+  } catch (e) {
+    grunt.fail.fatal("iso2toiso3.json is not valid JSON. Error: " + e);
+  }
+  return content;
+};
+var getIsoJSON = function (grunt) {
+  var content = '';
+  try {
+    content = grunt.file.readJSON("data.iso3.json");
+  } catch (e) {
+    grunt.fail.fatal("data.iso3.json is not valid JSON. Error: " + e);
+  }
+  return content;
+};
+
 
 
 module.exports = function(grunt) {
@@ -74,7 +92,43 @@ module.exports = function(grunt) {
     }
   }
 
+  // convert country to iso3. remove region shortcodes as we don't have a mapping.
+  function convertToIso3() {
+    var content = getJSON(grunt);
+    var mapping = getIso2to3JSON(grunt);
+    content.forEach(function (countryData) {
+      if (mapping[countryData.countryShortCode]) {
+        countryData.countryShortCode = mapping[countryData.countryShortCode];
+      }
+      for (var i=0; i<countryData.regions.length; i++) {
+        delete countryData.regions[i].shortCode;
+      }
+    });
+    grunt.file.write('data.iso3.json', JSON.stringify(content), {encoding: 'UTF-8'});
+  }
+  function shrinkJson() {
+    var content = getIsoJSON(grunt);
+    content.forEach(function (countryData) {
+      if (countryData.countryShortCode) {
+        countryData.code = countryData.countryShortCode;
+        delete countryData.countryShortCode;
+      }
+      var regions = [];
+      for (var i=0; i<countryData.regions.length; i++) {
+        regions.push(countryData.regions[i].name);
+      }
+      delete countryData.regions;
+      countryData.regions = regions;
+      countryData.name = countryData.countryName;
+      delete countryData.countryName;
+    });
+    grunt.file.write('data.iso3.min.json', JSON.stringify(content), {encoding: 'UTF-8'});
+  }
+
+
   grunt.registerTask("default", ['validate']);
   grunt.registerTask("validate", validate);
   grunt.registerTask("findIncomplete", findIncomplete);
+  grunt.registerTask('iso3', convertToIso3);
+  grunt.registerTask("shrink", shrinkJson);
 };
